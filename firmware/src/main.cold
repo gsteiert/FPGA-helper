@@ -1,0 +1,150 @@
+/* ----------------------------------------------------------------------------
+ *         SAM Software Package License
+ * ----------------------------------------------------------------------------
+ * Copyright (c) 2011-2014, Atmel Corporation
+ *
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following condition is met:
+ *
+ * Redistributions of source code must retain the above copyright notice,
+ * this list of conditions and the disclaimer below.
+ *
+ * Atmel's name may not be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+ *
+ * DISCLAIMER: THIS SOFTWARE IS PROVIDED BY ATMEL "AS IS" AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT ARE
+ * DISCLAIMED. IN NO EVENT SHALL ATMEL BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,
+ * OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+ * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * ----------------------------------------------------------------------------
+ */
+
+/**
+ * --------------------
+ * SAM-BA Implementation on SAMD21
+ * --------------------
+ * Requirements to use SAM-BA :
+ *
+ * Supported communication interfaces :
+ * --------------------
+ *
+ * SERCOM5 : RX:PB23 TX:PB22
+ * Baudrate : 115200 8N1
+ *
+ * USB : D-:PA24 D+:PA25
+ *
+ * Pins Usage
+ * --------------------
+ * The following pins are used by the program :
+ * PA25 : input/output
+ * PA24 : input/output
+ * PB23 : input
+ * PB22 : output
+ * PA15 : input
+ *
+ * The application board shall avoid driving the PA25,PA24,PB23,PB22 and PA15
+ * signals
+ * while the boot program is running (after a POR for example)
+ *
+ * Clock system
+ * --------------------
+ * CPU clock source (GCLK_GEN_0) - 8MHz internal oscillator (OSC8M)
+ * SERCOM5 core GCLK source (GCLK_ID_SERCOM5_CORE) - GCLK_GEN_0 (i.e., OSC8M)
+ * GCLK Generator 1 source (GCLK_GEN_1) - 48MHz DFLL in Clock Recovery mode
+ * (DFLL48M)
+ * USB GCLK source (GCLK_ID_USB) - GCLK_GEN_1 (i.e., DFLL in CRM mode)
+ *
+ * Memory Mapping
+ * --------------------
+ * SAM-BA code will be located at 0x0 and executed before any applicative code.
+ *
+ * Applications compiled to be executed along with the bootloader will start at
+ * 0x2000
+ * Before jumping to the application, the bootloader changes the VTOR register
+ * to use the interrupt vectors of the application @0x2000.<- not required as
+ * application code is taking care of this
+ *
+*/
+
+#include "uf2.h"
+
+static volatile bool main_b_cdc_enable = false;
+extern int8_t led_tick_step;
+
+#ifdef SAMD21
+#define RESET_CONTROLLER PM
+#endif
+#ifdef SAMD51
+#define RESET_CONTROLLER RSTC
+#endif
+
+
+extern char _etext;
+extern char _end;
+
+/**
+ *  \brief SAMD21 SAM-BA Main loop.
+ *  \return Unused (ANSI-C compatibility).
+ */
+int main(void) {
+    led_init();
+
+    logmsg("Start");
+ 
+    /* System initialization */
+    system_init();
+
+    __DMB();
+    __enable_irq();
+
+#if USE_UART
+    /* UART is enabled in all cases */
+    usart_open();
+#endif
+
+    logmsg("Before main loop");
+
+    usb_init();
+
+    // not enumerated yet
+    RGBLED_set_color(COLOR_START);
+    led_tick_step = 10;
+
+    while (1) {
+        delay(10000);
+        RGBLED_set_color(0x101010);
+        delay(10000);
+        RGBLED_set_color(0x100000);
+        delay(10000);
+        RGBLED_set_color(0x001000);
+        delay(10000);
+        RGBLED_set_color(0x000010);
+        delay(10000);
+        RGBLED_set_color(0x000000);
+    }
+
+    /* Wait for a complete enum on usb or a '#' char on serial line */
+    while (1) {
+        if (USB_Ok()) {
+            if (!main_b_cdc_enable) {
+                RGBLED_set_color(COLOR_USB);
+                led_tick_step = 1;
+            }
+
+            main_b_cdc_enable = true;
+        }
+        RGBLED_set_color(COLOR_UART);
+
+        if (main_b_cdc_enable) {
+            process_msc();
+        }
+    }
+}
