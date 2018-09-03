@@ -1,4 +1,4 @@
-# UF2 Bootloader
+# UF2 FPGA Loader
 
 This repository contains a FPGA loader, derived from the uf2-samdx1 project,
 which supports loading SPI flash devices commonly used to configure FPGAs 
