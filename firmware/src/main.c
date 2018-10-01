@@ -1,68 +1,272 @@
-/*
- * The MIT License (MIT)
+/* ----------------------------------------------------------------------------
+ *         SAM Software Package License
+ * ----------------------------------------------------------------------------
+ * Copyright (c) 2011-2014, Atmel Corporation
  *
- * Copyright (c) 2018 Steiert Solutions
+ * All rights reserved.
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following condition is met:
  *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
+ * Redistributions of source code must retain the above copyright notice,
+ * this list of conditions and the disclaimer below.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * Atmel's name may not be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+ *
+ * DISCLAIMER: THIS SOFTWARE IS PROVIDED BY ATMEL "AS IS" AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT ARE
+ * DISCLAIMED. IN NO EVENT SHALL ATMEL BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,
+ * OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+ * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * ----------------------------------------------------------------------------
  */
 
-/*
- * FPGA Helper Application
- * This is an FPGA programming and communication interface.
- * Programming is done using the UF2 file format through a 
- * drag-n-drop USB mass storage interface.  
- * This is primarily derived from the uf2-samdx1 project:
- * https://github.com/adafruit/uf2-samdx1
- */
+/**
+ * --------------------
+ * SAM-BA Implementation on SAMD21
+ * --------------------
+ * Requirements to use SAM-BA :
+ *
+ * Supported communication interfaces :
+ * --------------------
+ *
+ * SERCOM5 : RX:PB23 TX:PB22
+ * Baudrate : 115200 8N1
+ *
+ * USB : D-:PA24 D+:PA25
+ *
+ * Pins Usage
+ * --------------------
+ * The following pins are used by the program :
+ * PA25 : input/output
+ * PA24 : input/output
+ * PB23 : input
+ * PB22 : output
+ * PA15 : input
+ *
+ * The application board shall avoid driving the PA25,PA24,PB23,PB22 and PA15
+ * signals
+ * while the boot program is running (after a POR for example)
+ *
+ * Clock system
+ * --------------------
+ * CPU clock source (GCLK_GEN_0) - 8MHz internal oscillator (OSC8M)
+ * SERCOM5 core GCLK source (GCLK_ID_SERCOM5_CORE) - GCLK_GEN_0 (i.e., OSC8M)
+ * GCLK Generator 1 source (GCLK_GEN_1) - 48MHz DFLL in Clock Recovery mode
+ * (DFLL48M)
+ * USB GCLK source (GCLK_ID_USB) - GCLK_GEN_1 (i.e., DFLL in CRM mode)
+ *
+ * Memory Mapping
+ * --------------------
+ * SAM-BA code will be located at 0x0 and executed before any applicative code.
+ *
+ * Applications compiled to be executed along with the bootloader will start at
+ * 0x2000
+ * Before jumping to the application, the bootloader changes the VTOR register
+ * to use the interrupt vectors of the application @0x2000.<- not required as
+ * application code is taking care of this
+ *
+*/
 
 #include "uf2.h"
 
+#ifdef WAIT4DBLRST
+static void check_start_application(void);
+#endif
+
+static volatile bool main_b_cdc_enable = false;
+extern int8_t led_tick_step;
+
+#ifdef SAMD21
+#define RESET_CONTROLLER PM
+#endif
+#ifdef SAMD51
+#define RESET_CONTROLLER RSTC
+#endif
+
+/**
+ * \brief Check the application startup condition
+ *
+ */
+#ifdef WAIT4DBLRST
+static void check_start_application(void) {
+    uint32_t app_start_address;
+
+    /* Load the Reset Handler address of the application */
+    app_start_address = *(uint32_t *)(APP_START_ADDRESS + 4);
+
+    /**
+     * Test reset vector of application @APP_START_ADDRESS+4
+     * Sanity check on the Reset_Handler address
+     */
+    if (app_start_address < APP_START_ADDRESS || app_start_address > FLASH_SIZE) {
+        /* Stay in bootloader */
+        return;
+    }
+
+#if USE_SINGLE_RESET
+    if (SINGLE_RESET()) {
+        if (RESET_CONTROLLER->RCAUSE.bit.POR ||
+                *DBL_TAP_PTR != DBL_TAP_MAGIC_QUICK_BOOT) {
+            // the second tap on reset will go into app
+            *DBL_TAP_PTR = DBL_TAP_MAGIC_QUICK_BOOT;
+            // this will be cleared after succesful USB enumeration
+            // this is around 1.5s
+            resetHorizon = timerHigh + 300;
+            return;
+        }
+    }
+#endif
+
+    if (RESET_CONTROLLER->RCAUSE.bit.POR) {
+        *DBL_TAP_PTR = 0;
+    } else if (*DBL_TAP_PTR == DBL_TAP_MAGIC) {
+        *DBL_TAP_PTR = 0;
+        return; // stay in bootloader
+    } else {
+        if (*DBL_TAP_PTR != DBL_TAP_MAGIC_QUICK_BOOT) {
+            *DBL_TAP_PTR = DBL_TAP_MAGIC;
+            delay(500);
+        }
+        *DBL_TAP_PTR = 0;
+    }
+
+    LED_MSC_OFF();
+#if defined(__SAMD21E18A__)
+    RGBLED_set_color(COLOR_LEAVE);
+#endif
+
+    /* Rebase the Stack Pointer */
+    __set_MSP(*(uint32_t *)APP_START_ADDRESS);
+
+    /* Rebase the vector table base address */
+    SCB->VTOR = ((uint32_t)APP_START_ADDRESS & SCB_VTOR_TBLOFF_Msk);
+
+    /* Jump to application Reset Handler in the application */
+    asm("bx %0" ::"r"(app_start_address));
+}
+#endif
+
+extern char _etext;
+extern char _end;
+
+/**
+ *  \brief SAMD21 SAM-BA Main loop.
+ *  \return Unused (ANSI-C compatibility).
+ */
 int main(void) {
+    // if VTOR is set, we're not running in bootloader mode; halt
+/*     if (SCB->VTOR)
+        while (1) {
+        }
+ */
+#if (USB_VID == 0x239a) && (USB_PID == 0x0013)  // Adafruit Metro M0
+    // Delay a bit so SWD programmer can have time to attach.
+    delay(15);
+#endif
     led_init();
+    spi_flash_init();
 
-    logmsg ("Start");
+    logmsg("Start");
+//    assert((uint32_t)&_etext < APP_START_ADDRESS);
+    // bossac writes at 0x20005000
+//    assert(!USE_MONITOR || (uint32_t)&_end < 0x20005000);
 
-    RGBLED_set_color(0x001010);
+    assert(8 << NVMCTRL->PARAM.bit.PSZ == FLASH_PAGE_SIZE);
+    assert(FLASH_PAGE_SIZE * NVMCTRL->PARAM.bit.NVMP == FLASH_SIZE);
 
+    /* Jump in application if condition is satisfied */
+#ifdef WAIT4DBLRST
+    check_start_application();
+#endif
+
+    /* We have determined we should stay in the monitor. */
+    /* System initialization */
     system_init();
 
     __DMB();
     __enable_irq();
 
+#if USE_UART
+    /* UART is enabled in all cases */
     usart_open();
+#endif
 
-    RGBLED_set_color(0x100000);
-    logmsg("Init USB");
+
+    RGBLED_set_color(0x201020);
+//    delay(1000);
+
+
+    // The response will be 0xff if the flash needs more time to start up.
+    uint8_t jedec_id_response[3] = {0xff, 0xff, 0xff};
+//    int color_shift = 0;
+    spi_flash_read_command(CMD_READ_JEDEC_ID, jedec_id_response, 3);
+//     while (jedec_id_response[0] == 0xff) {
+//         delay(100);
+//         spi_flash_read_command(CMD_READ_JEDEC_ID, jedec_id_response, 3);
+// //        RGBLED_set_color(0x000020);
+//     }
+
+//    uint32_t flash_color = (jedec_id_response[0] << 0) + (jedec_id_response[1] << 8) + (jedec_id_response[2] << 16);
+
+    RGBLED_set_color(0x102010);
+
+    logmsg("Before main loop");
 
     usb_init();
-    
-    RGBLED_set_color(0x101010);
-    delay(10000);
 
+    // not enumerated yet
+    RGBLED_set_color(COLOR_START);
+    led_tick_step = 10;
+
+    /* Wait for a complete enum on usb or a '#' char on serial line */
     while (1) {
-        delay(10000);
-        RGBLED_set_color(0x100000);
-        delay(10000);
-        RGBLED_set_color(0x001000);
-        delay(10000);
-        RGBLED_set_color(0x000010);
-        delay(10000);
-        RGBLED_set_color(0x000000);
+        if (USB_Ok()) {
+            if (!main_b_cdc_enable) {
+// #if USE_SINGLE_RESET
+//                 // this might have been set
+//                 resetHorizon = 0;
+// #endif
+                RGBLED_set_color(COLOR_USB);
+//                RGBLED_set_color(flash_color);
+
+                led_tick_step = 1;
+            }
+
+            main_b_cdc_enable = true;
+        }
+
+#if USE_MONITOR
+        // Check if a USB enumeration has succeeded
+        // And com port was opened
+        if (main_b_cdc_enable) {
+            logmsg("entering monitor loop");
+            // SAM-BA on USB loop
+            while (1) {
+                sam_ba_monitor_run();
+            }
+        }
+#if USE_UART
+        /* Check if a '#' has been received */
+        if (!main_b_cdc_enable && usart_sharp_received()) {
+            RGBLED_set_color(COLOR_UART);
+            sam_ba_monitor_init(SAM_BA_INTERFACE_USART);
+            /* SAM-BA on UART loop */
+            while (1) {
+                sam_ba_monitor_run();
+            }
+        }
+#endif
+#else // no monitor
+        if (main_b_cdc_enable) {
+            process_msc();
+        }
+#endif
     }
-}    
+}

@@ -22,32 +22,47 @@
  * THE SOFTWARE.
  */
 
-#ifndef BOARD_CONFIG_H
-#define BOARD_CONFIG_H
+/*
+ * Bit-banging SPI Driver
+ */
 
-#define CRYSTALLESS    1
+uint8_t shift_spi_byte(uint8_t x) {
+    uint8_t y = 0;
+    for (uint8_t i = 0x80; i != 0; i >>= 1) {
+        if (x & i)
+            PINOP(BOARD_FLASH_MOSI_PIN, OUTSET);
+        else
+            PINOP(BOARD_FLASH_MOSI_PIN, OUTCLR);
 
-#define VENDOR_NAME "Steiert Solutions"
-#define PRODUCT_NAME "FPGA Helper"
-#define VOLUME_LABEL "FPGALOADER"
-#define INDEX_URL "http://www.steiert.net"
-#define BOARD_ID "SAMD21E18A-FPGAhlpr-v0"
+        PINOP(BOARD_FLASH_SCK_PIN, OUTSET);
+        // for (uint8_t j=0; j<25; j++) /* 0.1ms */
+        //  __asm__ __volatile__("");
 
-#define USB_VID 0x239A
-#define USB_PID 0x001E
+        y <<= 1;
+        if ( PINVAL(BOARD_FLASH_MISO_PIN) ) {
+            y |= 1;
+        }
 
-#define LED_PIN PIN_PA27 // not connected
-//#define LED_TX_PIN PIN_PA27
-//#define LED_RX_PIN PIN_PB03
+        PINOP(BOARD_FLASH_SCK_PIN, OUTCLR);
+        // for (uint8_t j=0; j<25; j++) /* 0.1ms */
+        //  __asm__ __volatile__("");
+    }
+    return y;
+}
 
-#define BOARD_RGBLED_CLOCK_PIN            PIN_PA00
-#define BOARD_RGBLED_DATA_PIN             PIN_PA01
-
-#define BOARD_FLASH_MOSI_PIN     PIN_PA08
-#define BOARD_FLASH_MISO_PIN     PIN_PA10
-#define BOARD_FLASH_SCK_PIN      PIN_PA11
-#define BOARD_FLASH_CS_PIN       PIN_PA09
-
-#define BOARD_VUSB_PIN           PIN_PA28
-
-#endif
+int32_t spi_m_sync_transfer(const struct spi_xfer *xfer) {
+	int32_t     rc   = 0;
+    uint8_t     read_data;
+    for (uint32_t i = 0; i < xfer->size; i++) {
+        if (xfer->txbuf) {
+            read_data = shift_spi_byte(xfer->txbuf[i]);
+        } else {
+            read_data = shift_spi_byte(0xFF);
+        }
+        if (xfer->rxbuf) {
+            xfer->rxbuf[i] = read_data;
+        }
+        rc += 1;
+    }
+	return rc;
+}

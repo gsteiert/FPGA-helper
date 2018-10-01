@@ -1,7 +1,9 @@
 /*
+ * This file is part of the MicroPython project, http://micropython.org/
+ *
  * The MIT License (MIT)
  *
- * Copyright (c) 2018 Steiert Solutions
+ * Copyright (c) 2013, 2014 Damien P. George
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,33 +23,24 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MICROPY_INCLUDED_ATMEL_SAMD_EXTERNAL_FLASH_COMMON_COMMANDS_H
+#define MICROPY_INCLUDED_ATMEL_SAMD_EXTERNAL_FLASH_COMMON_COMMANDS_H
 
-#ifndef BOARD_CONFIG_H
-#define BOARD_CONFIG_H
+#define CMD_READ_JEDEC_ID 0x9f
+#define CMD_READ_DATA 0x03
+#define CMD_SECTOR_ERASE 0x20
+// #define CMD_SECTOR_ERASE CMD_READ_JEDEC_ID
+#define CMD_DISABLE_WRITE 0x04
+#define CMD_ENABLE_WRITE 0x06
+#define CMD_PAGE_PROGRAM 0x02
+// #define CMD_PAGE_PROGRAM CMD_READ_JEDEC_ID
+#define CMD_READ_STATUS 0x05
+#define CMD_READ_STATUS2 0x35
+#define CMD_WRITE_STATUS_BYTE1 0x01
+#define CMD_WRITE_STATUS_BYTE2 0x31
+#define CMD_DUAL_READ 0x3b
+#define CMD_QUAD_READ 0x6b
+#define CMD_ENABLE_RESET 0x66
+#define CMD_RESET 0x99
 
-#define CRYSTALLESS    1
-
-#define VENDOR_NAME "Steiert Solutions"
-#define PRODUCT_NAME "FPGA Helper"
-#define VOLUME_LABEL "FPGALOADER"
-#define INDEX_URL "http://www.steiert.net"
-#define BOARD_ID "SAMD21E18A-FPGAhlpr-v0"
-
-#define USB_VID 0x239A
-#define USB_PID 0x001E
-
-#define LED_PIN PIN_PA27 // not connected
-//#define LED_TX_PIN PIN_PA27
-//#define LED_RX_PIN PIN_PB03
-
-#define BOARD_RGBLED_CLOCK_PIN            PIN_PA00
-#define BOARD_RGBLED_DATA_PIN             PIN_PA01
-
-#define BOARD_FLASH_MOSI_PIN     PIN_PA08
-#define BOARD_FLASH_MISO_PIN     PIN_PA10
-#define BOARD_FLASH_SCK_PIN      PIN_PA11
-#define BOARD_FLASH_CS_PIN       PIN_PA09
-
-#define BOARD_VUSB_PIN           PIN_PA28
-
-#endif
+#endif  // MICROPY_INCLUDED_ATMEL_SAMD_EXTERNAL_FLASH_COMMON_COMMANDS_H

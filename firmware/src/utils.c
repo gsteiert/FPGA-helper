@@ -48,6 +48,7 @@ int writeNum(char *buf, uint32_t n, bool full) {
     return i;
 }
 
+#ifdef  WAIT4DBLRST
 void resetIntoApp() {
     // reset without waiting for double tap (only works for one reset)
     RGBLED_set_color(COLOR_LEAVE);
@@ -60,6 +61,7 @@ void resetIntoBootloader() {
     *DBL_TAP_PTR = DBL_TAP_MAGIC;
     NVIC_SystemReset();
 }
+#endif
 
 #if USE_LOGS
 struct LogStore logStoreUF2;

@@ -1,7 +1,7 @@
-# UF2 Bootloader
+# UF2 FPGA Loader
 
-This repository contains a FPGA loader, derived from the uf2-samdx1 project,
-which supports loading SPI flash devices commonly used to configure FPGAs 
+This repository contains a FPGA loader, derived from the uf2-samdx1 project.
+This supports loading SPI flash devices commonly used to configure FPGAs 
 through USB MSC (mass storage) using the UF2 file format.  
 
 ## UF2
@@ -90,20 +90,6 @@ make r
 There is a number of configuration parameters at the top of `uf2.h` file.
 Adjust them to your liking.
 
-By default, you cannot enable all the features, as the bootloader would exceed
-the 8k allocated to it by Arduino etc. It will assert on startup that it's not bigger
-than 8k. Also, the linker script will not allow it.
-
-Three typical configurations are:
-
-* HID, WebUSB, MSC, plus flash reading via FAT; UART and CDC disabled;
-  logging optional; **recommended**
-* USB CDC and MSC, plus flash reading via FAT; UART disabled;
-  logging optional; this may have Windows driver problems
-* USB CDC and MSC, no flash reading via FAT (or at least `index.htm` disabled); UART enabled;
-  logging disabled; no handover; no HID;
-  only this one if you need the UART support in bootloader for whatever reason
-
 CDC and MSC together will work on Linux and Mac with no drivers.
 On Windows, if you have drivers installed for the USB ID chosen,
 then CDC might work and MSC will not work;
@@ -111,10 +97,6 @@ otherwise, if you have no drivers, MSC will work, and CDC will work on Windows 1
 Thus, it's best to set the USB ID to one for which there are no drivers.
 
 The bootloader sits at 0x00000000, and the application starts at 0x00002000.
-
-## Code of Conduct
-
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
 
 ## License
 

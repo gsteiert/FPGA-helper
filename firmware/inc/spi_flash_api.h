@@ -1,7 +1,9 @@
 /*
+ * This file is part of the MicroPython project, http://micropython.org/
+ *
  * The MIT License (MIT)
  *
- * Copyright (c) 2018 Steiert Solutions
+ * Copyright (c) 2013, 2014 Damien P. George
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,33 +23,23 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MICROPY_INCLUDED_ATMEL_SAMD_SPI_FLASH_H
+#define MICROPY_INCLUDED_ATMEL_SAMD_SPI_FLASH_H
 
-#ifndef BOARD_CONFIG_H
-#define BOARD_CONFIG_H
+#include <stdbool.h>
+#include <stdint.h>
 
-#define CRYSTALLESS    1
+#include "devices.h"
 
-#define VENDOR_NAME "Steiert Solutions"
-#define PRODUCT_NAME "FPGA Helper"
-#define VOLUME_LABEL "FPGALOADER"
-#define INDEX_URL "http://www.steiert.net"
-#define BOARD_ID "SAMD21E18A-FPGAhlpr-v0"
+// This API is implemented for both normal SPI peripherals and QSPI peripherals.
 
-#define USB_VID 0x239A
-#define USB_PID 0x001E
+bool spi_flash_command(uint8_t command);
+bool spi_flash_read_command(uint8_t command, uint8_t* response, uint32_t length);
+bool spi_flash_write_command(uint8_t command, uint8_t* data, uint32_t length);
+bool spi_flash_sector_command(uint8_t command, uint32_t address);
+bool spi_flash_write_data(uint32_t address, uint8_t* data, uint32_t data_length);
+bool spi_flash_read_data(uint32_t address, uint8_t* data, uint32_t data_length);
+void spi_flash_init(void);
+void spi_flash_init_device(const external_flash_device* device);
 
-#define LED_PIN PIN_PA27 // not connected
-//#define LED_TX_PIN PIN_PA27
-//#define LED_RX_PIN PIN_PB03
-
-#define BOARD_RGBLED_CLOCK_PIN            PIN_PA00
-#define BOARD_RGBLED_DATA_PIN             PIN_PA01
-
-#define BOARD_FLASH_MOSI_PIN     PIN_PA08
-#define BOARD_FLASH_MISO_PIN     PIN_PA10
-#define BOARD_FLASH_SCK_PIN      PIN_PA11
-#define BOARD_FLASH_CS_PIN       PIN_PA09
-
-#define BOARD_VUSB_PIN           PIN_PA28
-
-#endif
+#endif  // MICROPY_INCLUDED_ATMEL_SAMD_SPI_FLASH_H

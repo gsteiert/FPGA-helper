@@ -113,7 +113,7 @@ $(EXECUTABLE): $(OBJECTS)
 	arm-none-eabi-objcopy -O binary $(BUILD_PATH)/$(NAME).elf $(BUILD_PATH)/$(NAME).bin
 	python2 lib/uf2/utils/uf2conv.py -b $(BOOTLOADER_SIZE) -c -o $(EXECUTABLE_UF2) $(BUILD_PATH)/$(NAME).bin
 	@echo
-	-@arm-none-eabi-size $(BUILD_PATH)/$(NAME).elf | awk '{ s=$$1+$$2; print } END { print ""; print "Space left: " ($(BOOTLOADER_SIZE)-s) }'
+	-@arm-none-eabi-size $(BUILD_PATH)/$(NAME).elf 
 	@echo
 
 $(BUILD_PATH)/uf2_version.h: Makefile

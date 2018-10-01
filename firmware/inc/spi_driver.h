@@ -22,32 +22,39 @@
  * THE SOFTWARE.
  */
 
-#ifndef BOARD_CONFIG_H
-#define BOARD_CONFIG_H
+/*
+ * Bit-banging SPI Driver
+ */
 
-#define CRYSTALLESS    1
+#ifndef SPI_DRIVER_H
+#define SPI_DRIVER_H
 
-#define VENDOR_NAME "Steiert Solutions"
-#define PRODUCT_NAME "FPGA Helper"
-#define VOLUME_LABEL "FPGALOADER"
-#define INDEX_URL "http://www.steiert.net"
-#define BOARD_ID "SAMD21E18A-FPGAhlpr-v0"
 
-#define USB_VID 0x239A
-#define USB_PID 0x001E
 
-#define LED_PIN PIN_PA27 // not connected
-//#define LED_TX_PIN PIN_PA27
-//#define LED_RX_PIN PIN_PB03
+/** \brief Transfer descriptor for SPI
+ *  Transfer descriptor holds TX and RX buffers
+ */
+struct spi_xfer {
+	/** Pointer to data buffer to TX */
+	uint8_t *txbuf;
+	/** Pointer to data buffer to RX */
+	uint8_t *rxbuf;
+	/** Size of data characters to TX & RX */
+	uint32_t size;
+};
 
-#define BOARD_RGBLED_CLOCK_PIN            PIN_PA00
-#define BOARD_RGBLED_DATA_PIN             PIN_PA01
 
-#define BOARD_FLASH_MOSI_PIN     PIN_PA08
-#define BOARD_FLASH_MISO_PIN     PIN_PA10
-#define BOARD_FLASH_SCK_PIN      PIN_PA11
-#define BOARD_FLASH_CS_PIN       PIN_PA09
+/** \brief Perform the SPI data transfer (TX and RX) in polling way
+ *
+ *  Activate CS, do TX and RX and deactivate CS. It blocks.
+ *
+ *  \param[in, out] spi Pointer to the HAL SPI instance.
+ *  \param[in] xfer Pointer to the transfer information (\ref spi_xfer).
+ *
+ *  \retval size Success.
+ *  \retval >=0 Timeout, with number of characters transferred.
+ *  \retval ERR_BUSY SPI is busy
+ */
+int32_t spi_m_sync_transfer(struct spi_m_sync_descriptor *spi, const struct spi_xfer *xfer);
 
-#define BOARD_VUSB_PIN           PIN_PA28
-
-#endif
+#endif // _SPI_DRIVER_H_
